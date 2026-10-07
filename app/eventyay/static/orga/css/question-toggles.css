@@ -317,8 +317,8 @@ select.required-status-dropdown[data-current="after_deadline"] {
     width: 100%;
     grid-template-columns: max-content max-content;
     align-items: center;
-    justify-items: center;
-    justify-content: center;
+    justify-items: end;
+    justify-content: end;
     column-gap: 0.25rem;
 }
 
@@ -354,7 +354,7 @@ select.required-status-dropdown[data-current="after_deadline"] {
 
 .cfp-option-table tbody tr[dragsort-id="session_videos"] > th,
 .cfp-option-table tbody tr[dragsort-id="session_videos"] > td {
-    vertical-align: top;
+    vertical-align: middle;
 }
 
 @media (min-width: 769px) {
