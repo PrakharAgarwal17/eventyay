@@ -312,6 +312,25 @@ select.required-status-dropdown[data-current="after_deadline"] {
     border-radius: 2px;
 }
 
+.cfp-session-videos-heading-content {
+    display: grid;
+    width: 100%;
+    grid-template-columns: max-content max-content;
+    align-items: center;
+    justify-items: center;
+    justify-content: center;
+    column-gap: 0.25rem;
+}
+
+@media (max-width: 768px) {
+    .cfp-session-videos-heading-content {
+        display: inline-grid;
+        width: auto;
+        justify-content: start;
+        justify-items: start;
+    }
+}
+
 /* CFP Option Table Styles - Use more specific selectors to avoid unintended hiding */
 .cfp-option-table tbody select[name^="cfp_ask_"] {
     display: none;

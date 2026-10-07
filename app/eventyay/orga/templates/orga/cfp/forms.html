@@ -621,15 +621,17 @@
                         {% with field=sform.cfp_ask_session_videos %}
                         <tr dragsort-id="session_videos">
                             <th>
-                                <span class="cfp-organizer-only-label">{% translate "Session videos" %}</span>
-                                <span class="cfp-inline-help-wrapper">
-                                    <button type="button" class="btn btn-link btn-xs p-0 cfp-inline-help-toggle"
-                                        aria-label="{% translate 'Information about Session videos' %}"
-                                        aria-describedby="session-videos-help">
-                                        <i class="fa fa-question-circle-o text-info" aria-hidden="true"></i>
-                                    </button>
-                                    <span id="session-videos-help" class="cfp-inline-help-box" role="tooltip">
-                                        {% translate "This field can only be edited by organizers. It is not displayed on the proposal form." %}
+                                <span class="cfp-session-videos-heading-content">
+                                    <span class="cfp-organizer-only-label">{% translate "Session videos" %}</span>
+                                    <span class="cfp-inline-help-wrapper">
+                                        <button type="button" class="btn btn-link btn-xs p-0 cfp-inline-help-toggle"
+                                            aria-label="{% translate 'Information about Session videos' %}"
+                                            aria-describedby="session-videos-help">
+                                            <i class="fa fa-question-circle-o text-info" aria-hidden="true"></i>
+                                        </button>
+                                        <span id="session-videos-help" class="cfp-inline-help-box" role="tooltip">
+                                            {% translate "This field can only be edited by organizers. It is not displayed on the proposal form." %}
+                                        </span>
                                     </span>
                                 </span>
                             </th>
