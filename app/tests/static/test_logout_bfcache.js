@@ -7,7 +7,7 @@ const script = readFileSync(new URL("../../eventyay/static/common/js/base.js", i
 
 function createPage(storage = new Map()) {
     const listeners = {}
-    let reloads = 0
+    const replacements = []
 
     class Form {}
     class Element {
@@ -30,7 +30,7 @@ function createPage(storage = new Map()) {
             location: {
                 href: "https://example.test/event/",
                 origin: "https://example.test",
-                reload: () => { reloads++ },
+                replace: (url) => { replacements.push(url) },
             },
             addEventListener: (name, callback) => { listeners[`window:${name}`] = callback },
         },
@@ -56,38 +56,53 @@ function createPage(storage = new Map()) {
         pageshow(persisted) {
             listeners["window:pageshow"]({ persisted })
         },
-        get reloads() { return reloads },
+        get replacements() { return replacements },
         storage,
     }
 }
 
-test("reloads a BFCache-restored page after logout, including multiple Back restores", () => {
+test("navigates stale BFCache pages with GET after logout, including multiple Back restores", () => {
     const storage = new Map()
     const firstBackPage = createPage(storage)
     const secondBackPage = createPage(storage)
     firstBackPage.click("https://example.test/common/logout/")
     firstBackPage.pageshow(true)
     secondBackPage.pageshow(true)
-    assert.equal(firstBackPage.reloads, 1)
-    assert.equal(secondBackPage.reloads, 1)
+    assert.deepEqual(firstBackPage.replacements, ["https://example.test/event/"])
+    assert.deepEqual(secondBackPage.replacements, ["https://example.test/event/"])
 })
 
 test("marks logout forms and ignores non-logout navigation", () => {
     const page = createPage()
-    page.submit("https://example.test/orga/logout/")
+    page.submit("https://example.test/common/logout/")
     assert.equal(page.storage.get("eventyay.logout-version"), "1")
 
     const otherPage = createPage()
     otherPage.click("https://example.test/event/")
     otherPage.pageshow(true)
-    assert.equal(otherPage.reloads, 0)
+    assert.deepEqual(otherPage.replacements, [])
 })
 
-test("does not reload a fresh page restored from BFCache without a later logout", () => {
+test("does not navigate a fresh page restored from BFCache without a later logout", () => {
     const storage = new Map()
     const logoutPage = createPage(storage)
     logoutPage.submit("https://example.test/logout/")
     const freshPage = createPage(storage)
     freshPage.pageshow(true)
-    assert.equal(freshPage.reloads, 0)
+    assert.deepEqual(freshPage.replacements, [])
+})
+
+test("matches actual common and event logout routes, including encoded segments", () => {
+    const page = createPage()
+    page.click("https://example.test/common/logout/")
+    page.click("https://example.test/%63ommon/logout/")
+    page.click("https://example.test/org%61nizer/event/log%6Fut")
+    assert.equal(page.storage.get("eventyay.logout-version"), "3")
+})
+
+test("ignores ordinary paths that only end in logout", () => {
+    const page = createPage()
+    page.click("https://example.test/organizer/logout/")
+    page.click("https://example.test/page/logout/")
+    assert.equal(page.storage.has("eventyay.logout-version"), false)
 })

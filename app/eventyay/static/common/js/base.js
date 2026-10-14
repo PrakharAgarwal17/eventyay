@@ -47,7 +47,19 @@ onReady(() => {
 
     function isLogoutUrl(value) {
         const url = new URL(value, window.location.href)
-        return url.origin === window.location.origin && /(?:^|\/)logout\/?$/.test(url.pathname)
+        if (url.origin !== window.location.origin) return false
+
+        let path
+        try {
+            path = decodeURIComponent(url.pathname)
+        } catch (error) {
+            console.warn("Unable to decode a navigation path", error)
+            return false
+        }
+
+        const commonLogout = /(?:^|\/)common\/logout\/?$/.test(path)
+        const eventLogout = /(?:^|\/)[^/]+\/[^/]+\/logout\/?$/.test(path)
+        return commonLogout || eventLogout
     }
 
     function markLogoutNavigation() {
@@ -79,7 +91,7 @@ onReady(() => {
 
         try {
             if ((sessionStorage.getItem(logoutVersionKey) || "0") !== pageLogoutVersion) {
-                window.location.reload()
+                window.location.replace(window.location.href)
             }
         } catch (error) {
             console.warn("Unable to check the logout version after page restore", error)
