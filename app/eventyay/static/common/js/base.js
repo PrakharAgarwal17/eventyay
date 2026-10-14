@@ -34,3 +34,55 @@ onReady(() => {
         show("html")
     })
 })
+
+{
+    const logoutVersionKey = "eventyay.logout-version"
+    let pageLogoutVersion = null
+
+    try {
+        pageLogoutVersion = sessionStorage.getItem(logoutVersionKey) || "0"
+    } catch (error) {
+        console.warn("Unable to read the logout version from session storage", error)
+    }
+
+    function isLogoutUrl(value) {
+        const url = new URL(value, window.location.href)
+        return url.origin === window.location.origin && /(?:^|\/)logout\/?$/.test(url.pathname)
+    }
+
+    function markLogoutNavigation() {
+        if (pageLogoutVersion === null) return
+
+        try {
+            const currentVersion = Number(sessionStorage.getItem(logoutVersionKey)) || 0
+            sessionStorage.setItem(logoutVersionKey, String(currentVersion + 1))
+        } catch (error) {
+            console.warn("Unable to update the logout version in session storage", error)
+        }
+    }
+
+    document.addEventListener("submit", (event) => {
+        if (event.target instanceof HTMLFormElement && isLogoutUrl(event.target.action)) {
+            markLogoutNavigation()
+        }
+    }, true)
+
+    document.addEventListener("click", (event) => {
+        if (!(event.target instanceof Element)) return
+
+        const link = event.target.closest("a[href]")
+        if (link && isLogoutUrl(link.href)) markLogoutNavigation()
+    }, true)
+
+    window.addEventListener("pageshow", (event) => {
+        if (!event.persisted || pageLogoutVersion === null) return
+
+        try {
+            if ((sessionStorage.getItem(logoutVersionKey) || "0") !== pageLogoutVersion) {
+                window.location.reload()
+            }
+        } catch (error) {
+            console.warn("Unable to check the logout version after page restore", error)
+        }
+    })
+}
