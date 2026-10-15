@@ -147,13 +147,7 @@ export default {
 			}
 		},
 		onBack() {
-			if (window.history.state && window.history.state.back) {
-				this.$router.back()
-			} else if (window.eventyay?.isOrganizerArea) {
-				this.$router.replace({ name: 'organizer' })
-			} else {
-				this.$router.replace({ name: 'about' })
-			}
+			this.$router.push({ name: window.eventyay?.isOrganizerArea ? 'organizer' : 'about' })
 		}
 	},
 	beforeUnmount() {

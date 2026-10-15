@@ -710,11 +710,7 @@ export default {
 			return window.location.origin + resolved.href + '#token=' + this.token
 		},
 		onBack() {
-			if (this.room?.id) {
-				this.$router.push({ name: 'room', params: { roomId: this.room.id } })
-			} else {
-				this.$router.push({ name: 'admin:rooms:index' })
-			}
+			this.$router.push({ name: window.eventyay?.isOrganizerArea ? 'organizer' : 'about' })
 		},
 		copyRoomLink() {
 			if (!this.room) return
