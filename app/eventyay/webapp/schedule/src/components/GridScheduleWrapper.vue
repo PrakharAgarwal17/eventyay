@@ -118,6 +118,11 @@ export default {
 		}
 	},
 	methods: {
+		syncActiveDay () {
+			for (const grid of this.$refs.gridSchedules || []) {
+				grid.syncActiveDay()
+			}
+		},
 		scrollToNow() {
 			const grids = this.$refs.gridSchedules || []
 			for (const grid of grids) {

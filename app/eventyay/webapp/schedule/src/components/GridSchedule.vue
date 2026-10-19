@@ -277,6 +277,7 @@ export default {
 			const slices = []
 			const slicesLookup = {}
 			const pushSlice = function (date, {hasSession = false, hasBreak = false, hasStart = false, hasEnd = false} = {}) {
+				date = date.clone().startOf('minute')
 				const name = getSliceName(date)
 				let slice = slicesLookup[name]
 				if (slice) {
@@ -464,7 +465,7 @@ export default {
 	},
 	watch: {
 		timeslices () {
-			this.$nextTick(() => this.observeDayBreaks())
+			this.$nextTick(() => this.syncActiveDay())
 		},
 		currentDay (day) {
 			// Only scroll when triggered by toolbar click, not by scroll-based observer
@@ -479,11 +480,19 @@ export default {
 		}
 	},
 	async mounted () {
-		this.observer = new IntersectionObserver(this.onIntersect, {
-			root: this.scrollParent,
-			rootMargin: '-45% 0px'
-		})
-		this.observeDayBreaks()
+		this._onDayScroll = () => {
+			if (this._daySyncFrame) return
+			this._daySyncFrame = requestAnimationFrame(() => {
+				this._daySyncFrame = null
+				this.syncActiveDay()
+			})
+		}
+		this._dayScrollTargets = new Set([window, this.scrollParent, this.$el.closest('.pretalx-schedule') || this.$el.closest('.c-schedule-view')].filter(Boolean))
+		for (const target of this._dayScrollTargets) {
+			target.addEventListener('scroll', this._onDayScroll, { passive: true })
+		}
+		document.addEventListener('fullscreenchange', this._onDayScroll)
+		window.addEventListener('resize', this._onDayScroll)
 		await this.$nextTick()
 		this.initScrollSync()
 		if (!this.$refs.now) return
@@ -494,6 +503,12 @@ export default {
 		this.scrollToNow()
 	},
 	beforeUnmount () {
+		for (const target of this._dayScrollTargets || []) {
+			target.removeEventListener('scroll', this._onDayScroll)
+		}
+		document.removeEventListener('fullscreenchange', this._onDayScroll)
+		window.removeEventListener('resize', this._onDayScroll)
+		if (this._daySyncFrame) cancelAnimationFrame(this._daySyncFrame)
 		if (this._gridResizeObserver) {
 			this._gridResizeObserver.disconnect()
 		}
@@ -638,7 +653,7 @@ export default {
 			if (!el) return
 			const clearance = this.getStickyHeaderClearance()
 			const rect = el.getBoundingClientRect()
-			const scrollEl = this.scrollParent
+			const scrollEl = this.$el.closest(':fullscreen') || this.scrollParent
 			const isWindowScroll = !scrollEl || scrollEl === document.documentElement || scrollEl === document.body
 			if (!isWindowScroll) {
 				const parentRect = scrollEl.getBoundingClientRect()
@@ -729,20 +744,23 @@ export default {
 			document.addEventListener('mousemove', onMouseMove)
 			document.addEventListener('mouseup', onMouseUp)
 		},
-		observeDayBreaks () {
-			if (!this.observer) return
-			this.observer.disconnect()
-			for (const [ref, el] of Object.entries(this.$refs)) {
-				if (!ref.startsWith('slice') || !ref.endsWith('00-00')) continue
-				const node = Array.isArray(el) ? el[0] : el
-				if (node) this.observer.observe(node)
+		syncActiveDay () {
+			const scrollEl = this.$el.closest(':fullscreen') || this.scrollParent
+			const isWindowScroll = !scrollEl || scrollEl === document.documentElement || scrollEl === document.body
+			const top = (isWindowScroll ? 0 : scrollEl.getBoundingClientRect().top) + this.getStickyHeaderClearance()
+			const gridRect = this.$el.getBoundingClientRect()
+			if (gridRect.top > top || gridRect.bottom <= top) return
+			const viewportBottom = isWindowScroll ? window.innerHeight : scrollEl.getBoundingClientRect().bottom
+			const atBottom = isWindowScroll
+				? window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2
+				: scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 2
+			const boundary = atBottom ? viewportBottom : top
+			const headings = this.$el.querySelectorAll('.grid > .timeslice.datebreak')
+			let dayStr
+			for (const heading of headings) {
+				if (heading.getBoundingClientRect().top > boundary) break
+				dayStr = heading.dataset.sliceDay
 			}
-		},
-		onIntersect (entries) {
-			const intersecting = entries.filter(entry => entry.isIntersecting)
-			if (!intersecting.length) return
-			const entry = intersecting.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
-			const dayStr = entry.target.dataset.sliceDay
 			if (!dayStr || dayStr === this.currentDay) return
 			// Only update the active day indicator — don't trigger a scroll jump.
 			// scrollToDayStart is only called from toolbar clicks (selectDay / forceScrollDay).

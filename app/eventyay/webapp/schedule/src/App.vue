@@ -1337,7 +1337,10 @@ export default {
 		beginDayNavigation (dayId) {
 			this.clearDayNavigationLock()
 			this.userNavigatingToDay = dayId
-			this._dayNavTimeout = setTimeout(() => this.clearDayNavigationLock(), 2000)
+			this._dayNavTimeout = setTimeout(() => {
+				this.clearDayNavigationLock()
+				this.$refs.scheduleDisplay?.syncActiveDay?.()
+			}, 2000)
 		},
 		changeDay (day) {
 			if (day.clone().startOf('day').format('YYYY-MM-DD') === this.currentDay) return
