@@ -5,6 +5,7 @@
   "author": "",
   "scripts": {
     "start": "vite",
+    "test": "node --test tests/*.test.js",
     "build": "vite build",
     "analyze": "ANALYZE=true npm run build",
     "i18n:extract": "node ../i18n/extract.mjs extract --domain schedule",
