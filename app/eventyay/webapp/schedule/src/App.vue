@@ -2017,6 +2017,55 @@ export default {
 	&:hover .pretalx
 		color: #3aa57c
 
+@media screen and (max-width: 600px)
+	.pretalx-schedule.grid-schedule .grid-viewport .c-linear-schedule-session
+		flex-direction: column
+		.time-box
+			width: 100%
+			min-height: 40px
+			padding: 6px 40px 6px 8px
+			border-radius: 6px 6px 0 0
+			.start
+				flex-direction: row
+				gap: 8px
+				text-align: left
+				.clock
+					flex-direction: row
+					gap: 4px
+				.ampm, .duration
+					margin-top: 0
+			.buffer
+				display: none
+		.info, .info.has-icons
+			padding-right: 8px
+			border-left: border-separator()
+			border-top: none
+			border-radius: 0 0 6px 6px
+		&.has-fav-count
+			.time-box
+				padding-right: 76px
+			.info.has-icons
+				padding-right: 8px
+		.fav-count
+			color: $clr-primary-text-dark
+			background: var(--track-color)
+		&:hover .info
+			border-left: 1px solid var(--track-color)
+		&:has(> .stream-indicator)
+			.time-box
+				padding-right: 76px
+			.stream-indicator
+				top: 4px
+				right: 38px
+				transform: none
+				&:hover
+					transform: scale(1.15)
+			&.has-fav-count
+				.time-box
+					padding-right: 112px
+				.fav-count
+					right: 76px
+
 @media print
 	.pretalx-schedule
 		height: auto !important
