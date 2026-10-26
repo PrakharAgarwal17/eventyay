@@ -2018,7 +2018,7 @@ export default {
 		color: #3aa57c
 
 @media screen and (max-width: 600px)
-	.pretalx-schedule.grid-schedule .grid-viewport .c-linear-schedule-session
+	.pretalx-schedule.grid-schedule .grid-viewport .c-linear-schedule-session:not(.is-shift-session)
 		flex-direction: column
 		.time-box
 			width: 100%
