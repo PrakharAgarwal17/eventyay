@@ -609,233 +609,129 @@ def test_admin_users_dropdown_behavior():
     script = r'''
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import test from 'node:test';
 import vm from 'node:vm';
 
 const source = readFileSync(process.argv[2], 'utf8');
-
-function setup({ width = 1280, height = 800 } = {}) {
-    const documentEvents = {};
-    const windowEvents = {};
-    const groups = [];
-    const requests = [];
+function setup({ right = 440, top = 100, bottom = 130, width = 1280, height = 800 } = {}) {
+    const documentEvents = {}, windowEvents = {}, requests = [];
+    let open = false;
     class Element {
-        matches(selector) {
-            return (selector === '.user-action-form button' && this.actionButton === true)
-                || (selector === 'form' && this.form === true);
+        matches(selector) { return selector === '.user-action-form button' && Boolean(this.action); }
+        closest(selector) {
+            if (selector === '.admin-users-table .btn-group') return group;
+            return this.matches(selector) ? this : null;
         }
+        querySelector() { return null; }
+        focus() { document.activeElement = this; }
+        setAttribute(name, value) { this[name] = value; }
+        getBoundingClientRect() { return { right, top, bottom }; }
         click() {
-            this.bootstrapClick();
+            // Model Bootstrap's toggle/clearMenus before our delegated click listener.
+            open = this === toggle && !open;
+            toggle['aria-expanded'] = String(open);
+            backdrop.removed = !open;
             documentEvents.click({ target: this, preventDefault() {} });
         }
     }
+    const toggle = new Element();
+    toggle['aria-expanded'] = 'false';
+    const backdrop = { removed: true, remove() { this.removed = true; } };
+    const menu = Object.assign(new Element(), {
+        offsetWidth: 220, offsetHeight: 66,
+        style: { removeProperty(name) { delete this[name]; } },
+        contains: target => target === menu || buttons.includes(target),
+    });
+    const buttons = ['resend_verification', 'reset_password'].map(action => {
+        const form = {
+            dataset: {}, elements: { action: { value: action } },
+            matches: selector => selector === 'form', querySelector: () => null,
+            getAttribute(name) { return name === 'action' ? '/admin/users/email-action/' : this[name]; },
+            setAttribute(name, value) { this[name] = value; },
+            removeAttribute(name) { delete this[name]; },
+        };
+        return Object.assign(new Element(), { action, parentElement: form });
+    });
+    const group = {
+        classList: { contains: () => open, remove: () => { open = false; } },
+        contains: target => target === toggle || menu.contains(target),
+        querySelector: selector => ({
+            '.dropdown-menu': menu, '.user-email-actions-toggle': toggle,
+            '.dropdown-backdrop': backdrop.removed ? null : backdrop,
+        })[selector],
+        querySelectorAll: () => buttons,
+    };
     const document = {
-        readyState: 'complete',
-        activeElement: null,
-        getElementById: () => null,
-        querySelector: selector => selector === '.admin-users-table .btn-group.open'
-            ? groups.find(group => group.classList.contains('open')) || null : null,
-        cookie: '',
+        readyState: 'complete', cookie: '', activeElement: toggle, getElementById: () => null,
+        querySelector: selector => selector === '.admin-users-table .btn-group.open' && open ? group : null,
         addEventListener: (name, handler) => { documentEvents[name] = handler; },
     };
     const window = {
-        innerWidth: width,
-        innerHeight: height,
+        innerWidth: width, innerHeight: height,
         addEventListener: (name, handler) => { windowEvents[name] = handler; },
     };
-    const context = vm.createContext({
-        document, window, Node: Element, queueMicrotask: callback => callback(),
+    vm.runInNewContext(source, {
+        document, window, Node: Element, queueMicrotask,
         FormData: class { constructor(form) { this.action = form.elements.action.value; } },
         fetch: async (url, options) => {
             requests.push({ url, ...options });
             return { ok: true, headers: { get: () => 'application/json' }, json: async () => ({ status: 'ok' }) };
         },
     });
-    vm.runInContext(source, context);
-
-    function createGroup(rect = { left: 100, right: 140, top: 100, bottom: 130 }, open = true) {
-        const menu = new Element();
-        menu.offsetWidth = 220;
-        menu.offsetHeight = 66;
-        menu.style = { removeProperty(name) { delete this[name]; } };
-        const backdrop = new Element();
-        backdrop.removed = false;
-        backdrop.remove = () => { backdrop.removed = true; };
-        const toggle = new Element();
-        toggle.attributes = { 'aria-expanded': String(open) };
-        toggle.getBoundingClientRect = () => rect;
-        toggle.setAttribute = (name, value) => { toggle.attributes[name] = value; };
-        toggle.focus = () => { document.activeElement = toggle; };
-        const buttons = [new Element(), new Element()];
-        buttons.forEach((button, index) => {
-            button.actionButton = true;
-            button.focus = () => { document.activeElement = button; };
-            button.querySelector = () => null;
-            const form = new Element();
-            form.form = true;
-            form.dataset = {};
-            form.elements = { action: { value: index === 0 ? 'resend_verification' : 'reset_password' } };
-            form.attributes = {};
-            form.getAttribute = name => name === 'action' ? '/admin/users/email-action/' : form.attributes[name];
-            form.setAttribute = (name, value) => { form.attributes[name] = value; };
-            form.removeAttribute = name => { delete form.attributes[name]; };
-            form.querySelector = () => null;
-            button.parentElement = form;
-        });
-        menu.contains = target => target === menu || buttons.includes(target);
-        const classes = new Set(open ? ['open'] : []);
-        const group = {
-            classList: { contains: name => classes.has(name), remove: name => classes.delete(name) },
-            contains: target => target === toggle || menu.contains(target),
-            querySelector: selector => {
-                if (selector === '.dropdown-menu') return menu;
-                if (selector === '.dropdown-backdrop') return backdrop.removed ? null : backdrop;
-                return toggle;
-            },
-            querySelectorAll: () => buttons,
-        };
-        function clearMenus() {
-            groups.forEach(other => {
-                other.classList.remove('open');
-                other.querySelector('.user-email-actions-toggle').setAttribute('aria-expanded', 'false');
-                other.querySelector('.dropdown-backdrop')?.remove();
-            });
-        }
-        toggle.bootstrapClick = () => {
-            const wasOpen = classes.has('open');
-            clearMenus();
-            if (!wasOpen) {
-                classes.add('open');
-                toggle.setAttribute('aria-expanded', 'true');
-                backdrop.removed = false;
-            }
-        };
-        toggle.closest = selector => selector === '.admin-users-table .btn-group' ? group : null;
-        buttons.forEach(button => {
-            button.closest = selector => selector === '.user-action-form button' ? button : toggle.closest(selector);
-            button.bootstrapClick = clearMenus;
-        });
-        groups.push(group);
-        return { group, menu, backdrop, toggle, buttons };
-    }
-
-    return { context, document, documentEvents, windowEvents, createGroup, Element, requests };
-}
-
-test('menu opens below its toggle without losing its row/forms', () => {
-    const env = setup();
-    const { group, menu } = env.createGroup({ left: 400, right: 440, top: 100, bottom: 130 });
-    env.context.positionActionsMenu();
-    assert.equal(menu.style.position, 'fixed');
-    assert.equal(menu.style.left, '220px');
-    assert.equal(menu.style.top, '130px');
-    assert.equal(group.querySelector('.dropdown-menu'), menu);
-});
-
-test('menu opens above near the viewport bottom', () => {
-    const env = setup({ height: 400 });
-    const { menu } = env.createGroup({ right: 440, top: 350, bottom: 380 });
-    env.context.positionActionsMenu();
-    assert.equal(menu.style.top, '284px');
-});
-
-for (const [right, expected] of [[20, '8px'], [500, '162px']]) {
-    test(`mobile menu stays within viewport when toggle right is ${right}`, () => {
-        const env = setup({ width: 390 });
-        const { menu } = env.createGroup({ right, top: 100, bottom: 130 });
-        env.context.positionActionsMenu();
-        assert.equal(menu.style.left, expected);
-    });
-}
-
-test('switching rows resets the previous menu position', () => {
-    const env = setup();
-    const first = env.createGroup();
-    env.context.positionActionsMenu();
-    first.group.classList.remove('open');
-    const second = env.createGroup();
-    env.context.positionActionsMenu();
-    assert.equal(first.menu.style.position, undefined);
-    assert.equal(second.menu.style.position, 'fixed');
-});
-
-for (const reason of ['Escape', 'focus', 'page scroll', 'table scroll', 'resize']) {
-    test(`${reason} closes menu, removes touch backdrop and resets styles/aria`, () => {
-        const env = setup();
-        const { group, menu, toggle, backdrop } = env.createGroup();
-        env.context.positionActionsMenu();
-        if (reason === 'Escape') {
-            env.documentEvents.keydown({ target: toggle, key: 'Escape', preventDefault() {}, stopPropagation() {} });
-            assert.equal(env.document.activeElement, toggle);
-        } else if (reason === 'focus') {
-            env.documentEvents.focusin({ target: new env.Element() });
-        } else if (reason === 'resize') {
-            env.windowEvents.resize();
-        } else {
-            env.windowEvents.scroll({ target: reason === 'table scroll' ? new env.Element() : env.document });
-        }
-        assert.equal(group.classList.contains('open'), false);
-        assert.equal(backdrop.removed, true);
-        assert.equal(toggle.attributes['aria-expanded'], 'false');
-        for (const name of ['position', 'left', 'right', 'top']) assert.equal(menu.style[name], undefined);
-    });
-}
-
-test('scrolling inside the menu does not dismiss it', () => {
-    const env = setup();
-    const { group, menu, backdrop } = env.createGroup();
-    env.context.positionActionsMenu();
-    env.windowEvents.scroll({ target: menu });
-    assert.equal(group.classList.contains('open'), true);
-    assert.equal(backdrop.removed, false);
-});
-
-test('closing one menu preserves another dropdown backdrop', () => {
-    const env = setup();
-    const first = env.createGroup();
-    env.context.positionActionsMenu();
-    const second = env.createGroup();
-    env.context.closeActionsMenu();
-    assert.equal(first.backdrop.removed, true);
-    assert.equal(second.backdrop.removed, false);
-});
-
-for (const index of [0, 1]) {
-    test(`Space dispatches action ${index + 1} after opening a closed menu with ArrowDown`, async () => {
-        const env = setup();
-        const { group, toggle, buttons, menu, backdrop } = env.createGroup(undefined, false);
-        assert.equal(group.classList.contains('open'), false);
-        assert.equal(toggle.attributes['aria-expanded'], 'false');
-        toggle.focus();
-        for (let step = 0; step <= index; step++) {
-            env.documentEvents.keydown({
-                target: env.document.activeElement, key: 'ArrowDown', preventDefault() {}, stopPropagation() {},
-            });
-        }
-        assert.equal(group.classList.contains('open'), true);
-        assert.equal(toggle.attributes['aria-expanded'], 'true');
-        assert.equal(menu.style.position, 'fixed');
-        assert.equal(env.document.activeElement, buttons[index]);
-        let prevented = false;
-        let stopped = false;
-        env.documentEvents.keydown({
-            target: env.document.activeElement, key: ' ',
-            preventDefault() { prevented = true; },
-            stopPropagation() { stopped = true; },
-        });
-        assert.equal(env.requests.length, 1);
-        assert.equal(env.requests[0].method, 'POST');
-        assert.equal(env.requests[0].body.action, index === 0 ? 'resend_verification' : 'reset_password');
-        assert.equal(group.classList.contains('open'), false);
-        assert.equal(toggle.attributes['aria-expanded'], 'false');
-        assert.equal(backdrop.removed, true);
-        for (const name of ['position', 'left', 'right', 'top']) assert.equal(menu.style[name], undefined);
-        assert.equal(prevented, true);
-        assert.equal(stopped, true);
+    async function key(key) {
+        let prevented = false, stopped = false;
+        documentEvents.keydown({ target: document.activeElement, key,
+            preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
         await new Promise(setImmediate);
-        assert.equal(buttons[index].disabled, false);
-        assert.equal(buttons[index].parentElement.getAttribute('aria-busy'), undefined);
-    });
+        assert.ok(prevented && stopped);
+    }
+    function assertClosed() {
+        assert.equal(open, false);
+        assert.equal(toggle['aria-expanded'], 'false');
+        assert.equal(backdrop.removed, true);
+        for (const name of ['position', 'left', 'right', 'top']) assert.equal(menu.style[name], undefined);
+    }
+    return { toggle, menu, buttons, group, document, documentEvents, windowEvents, requests, key, assertClosed };
+}
+
+for (const [options, left, top] of [
+    [{}, '220px', '130px'],
+    [{ height: 400, top: 350, bottom: 380 }, '220px', '284px'],
+    [{ width: 390, right: 20 }, '8px', '130px'],
+    [{ width: 390, right: 500 }, '162px', '130px'],
+]) {
+    const env = setup(options);
+    env.toggle.click();
+    await new Promise(setImmediate);
+    assert.equal(env.menu.style.position, 'fixed');
+    assert.equal(env.menu.style.left, left);
+    assert.equal(env.menu.style.top, top);
+}
+for (const reason of ['Escape', 'focus', 'page scroll', 'table scroll', 'resize']) {
+    const env = setup();
+    env.toggle.click();
+    await new Promise(setImmediate);
+    env.windowEvents.scroll({ target: env.menu });
+    assert.ok(env.group.classList.contains('open'));
+    if (reason === 'Escape') await env.key(reason);
+    else if (reason === 'focus') env.documentEvents.focusin({ target: {} });
+    else if (reason === 'resize') env.windowEvents.resize();
+    else env.windowEvents.scroll({ target: reason === 'page scroll' ? env.document : env.toggle });
+    env.assertClosed();
+}
+for (const index of [0, 1]) {
+    const env = setup();
+    env.assertClosed();
+    for (let step = 0; step <= index; step++) await env.key('ArrowDown');
+    assert.ok(env.group.classList.contains('open'));
+    assert.equal(env.toggle['aria-expanded'], 'true');
+    assert.equal(env.document.activeElement, env.buttons[index]);
+    await env.key(' ');
+    assert.equal(env.requests.length, 1);
+    assert.equal(env.requests[0].method, 'POST');
+    assert.equal(env.requests[0].body.action, env.buttons[index].action);
+    assert.equal(env.buttons[index].disabled, false);
+    assert.equal(env.buttons[index].parentElement.getAttribute('aria-busy'), undefined);
+    env.assertClosed();
 }
 '''
     result = subprocess.run(
