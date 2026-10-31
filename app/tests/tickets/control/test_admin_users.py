@@ -618,15 +618,24 @@ function setup({ width = 1280, height = 800 } = {}) {
     const documentEvents = {};
     const windowEvents = {};
     const groups = [];
+    const requests = [];
     class Element {
-        matches(selector) { return selector === '.user-action-form button' && this.actionButton === true; }
-        click() { this.clickCount = (this.clickCount || 0) + 1; }
+        matches(selector) {
+            return (selector === '.user-action-form button' && this.actionButton === true)
+                || (selector === 'form' && this.form === true);
+        }
+        click() {
+            this.bootstrapClick();
+            documentEvents.click({ target: this, preventDefault() {} });
+        }
     }
     const document = {
         readyState: 'complete',
         activeElement: null,
         getElementById: () => null,
-        querySelector: () => groups.find(group => group.classList.contains('open')) || null,
+        querySelector: selector => selector === '.admin-users-table .btn-group.open'
+            ? groups.find(group => group.classList.contains('open')) || null : null,
+        cookie: '',
         addEventListener: (name, handler) => { documentEvents[name] = handler; },
     };
     const window = {
@@ -634,10 +643,17 @@ function setup({ width = 1280, height = 800 } = {}) {
         innerHeight: height,
         addEventListener: (name, handler) => { windowEvents[name] = handler; },
     };
-    const context = vm.createContext({ document, window, Node: Element, queueMicrotask: callback => callback() });
+    const context = vm.createContext({
+        document, window, Node: Element, queueMicrotask: callback => callback(),
+        FormData: class { constructor(form) { this.action = form.elements.action.value; } },
+        fetch: async (url, options) => {
+            requests.push({ url, ...options });
+            return { ok: true, headers: { get: () => 'application/json' }, json: async () => ({ status: 'ok' }) };
+        },
+    });
     vm.runInContext(source, context);
 
-    function createGroup(rect = { left: 100, right: 140, top: 100, bottom: 130 }) {
+    function createGroup(rect = { left: 100, right: 140, top: 100, bottom: 130 }, open = true) {
         const menu = new Element();
         menu.offsetWidth = 220;
         menu.offsetHeight = 66;
@@ -646,17 +662,28 @@ function setup({ width = 1280, height = 800 } = {}) {
         backdrop.removed = false;
         backdrop.remove = () => { backdrop.removed = true; };
         const toggle = new Element();
-        toggle.attributes = { 'aria-expanded': 'true' };
+        toggle.attributes = { 'aria-expanded': String(open) };
         toggle.getBoundingClientRect = () => rect;
         toggle.setAttribute = (name, value) => { toggle.attributes[name] = value; };
         toggle.focus = () => { document.activeElement = toggle; };
         const buttons = [new Element(), new Element()];
-        buttons.forEach(button => {
+        buttons.forEach((button, index) => {
             button.actionButton = true;
             button.focus = () => { document.activeElement = button; };
+            button.querySelector = () => null;
+            const form = new Element();
+            form.form = true;
+            form.dataset = {};
+            form.elements = { action: { value: index === 0 ? 'resend_verification' : 'reset_password' } };
+            form.attributes = {};
+            form.getAttribute = name => name === 'action' ? '/admin/users/email-action/' : form.attributes[name];
+            form.setAttribute = (name, value) => { form.attributes[name] = value; };
+            form.removeAttribute = name => { delete form.attributes[name]; };
+            form.querySelector = () => null;
+            button.parentElement = form;
         });
         menu.contains = target => target === menu || buttons.includes(target);
-        const classes = new Set(['open']);
+        const classes = new Set(open ? ['open'] : []);
         const group = {
             classList: { contains: name => classes.has(name), remove: name => classes.delete(name) },
             contains: target => target === toggle || menu.contains(target),
@@ -667,13 +694,32 @@ function setup({ width = 1280, height = 800 } = {}) {
             },
             querySelectorAll: () => buttons,
         };
+        function clearMenus() {
+            groups.forEach(other => {
+                other.classList.remove('open');
+                other.querySelector('.user-email-actions-toggle').setAttribute('aria-expanded', 'false');
+                other.querySelector('.dropdown-backdrop')?.remove();
+            });
+        }
+        toggle.bootstrapClick = () => {
+            const wasOpen = classes.has('open');
+            clearMenus();
+            if (!wasOpen) {
+                classes.add('open');
+                toggle.setAttribute('aria-expanded', 'true');
+                backdrop.removed = false;
+            }
+        };
         toggle.closest = selector => selector === '.admin-users-table .btn-group' ? group : null;
-        buttons.forEach(button => { button.closest = toggle.closest; });
+        buttons.forEach(button => {
+            button.closest = selector => selector === '.user-action-form button' ? button : toggle.closest(selector);
+            button.bootstrapClick = clearMenus;
+        });
         groups.push(group);
         return { group, menu, backdrop, toggle, buttons };
     }
 
-    return { context, document, documentEvents, windowEvents, createGroup, Element };
+    return { context, document, documentEvents, windowEvents, createGroup, Element, requests };
 }
 
 test('menu opens below its toggle without losing its row/forms', () => {
@@ -755,15 +801,20 @@ test('closing one menu preserves another dropdown backdrop', () => {
 });
 
 for (const index of [0, 1]) {
-    test(`Space activates action ${index + 1} after arrow-key navigation`, () => {
+    test(`Space dispatches action ${index + 1} after opening a closed menu with ArrowDown`, async () => {
         const env = setup();
-        const { toggle, buttons } = env.createGroup();
+        const { group, toggle, buttons, menu, backdrop } = env.createGroup(undefined, false);
+        assert.equal(group.classList.contains('open'), false);
+        assert.equal(toggle.attributes['aria-expanded'], 'false');
         toggle.focus();
         for (let step = 0; step <= index; step++) {
             env.documentEvents.keydown({
                 target: env.document.activeElement, key: 'ArrowDown', preventDefault() {}, stopPropagation() {},
             });
         }
+        assert.equal(group.classList.contains('open'), true);
+        assert.equal(toggle.attributes['aria-expanded'], 'true');
+        assert.equal(menu.style.position, 'fixed');
         assert.equal(env.document.activeElement, buttons[index]);
         let prevented = false;
         let stopped = false;
@@ -772,9 +823,18 @@ for (const index of [0, 1]) {
             preventDefault() { prevented = true; },
             stopPropagation() { stopped = true; },
         });
-        assert.equal(buttons[index].clickCount, 1);
+        assert.equal(env.requests.length, 1);
+        assert.equal(env.requests[0].method, 'POST');
+        assert.equal(env.requests[0].body.action, index === 0 ? 'resend_verification' : 'reset_password');
+        assert.equal(group.classList.contains('open'), false);
+        assert.equal(toggle.attributes['aria-expanded'], 'false');
+        assert.equal(backdrop.removed, true);
+        for (const name of ['position', 'left', 'right', 'top']) assert.equal(menu.style[name], undefined);
         assert.equal(prevented, true);
         assert.equal(stopped, true);
+        await new Promise(setImmediate);
+        assert.equal(buttons[index].disabled, false);
+        assert.equal(buttons[index].parentElement.getAttribute('aria-busy'), undefined);
     });
 }
 '''
