@@ -1,3 +1,6 @@
+$dashboard-section-gap: 24px;
+$dashboard-card-gutter: 5px; // widget-container white border
+
 .dashboard {
   display: flex;
   flex-wrap: wrap;
@@ -235,6 +238,33 @@
   }
   a {
     cursor: pointer;
+  }
+}
+
+.dashboard-print {
+  .dashboard.custom {
+    margin-top: 20px;
+    margin-bottom: $dashboard-card-gutter;
+  }
+
+  .dashboard:not(.custom) {
+    margin-bottom: $dashboard-section-gap - $dashboard-card-gutter;
+  }
+
+  .panel {
+    margin-bottom: $dashboard-section-gap;
+  }
+
+  .dashboard.custom > .panel {
+    margin-bottom: 0;
+  }
+
+  .panel-body .dashboard {
+    margin-bottom: 0;
+  }
+
+  .comment-actions {
+    margin-top: 10px;
   }
 }
 
