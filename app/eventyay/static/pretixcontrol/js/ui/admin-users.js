@@ -302,6 +302,7 @@ function resetActionsMenu(group) {
 function closeActionsMenu() {
     if (!activeActionsGroup) return;
     activeActionsGroup.classList.remove('open');
+    activeActionsGroup.querySelector('.dropdown-backdrop')?.remove();
     activeActionsGroup.querySelector('.user-email-actions-toggle').setAttribute('aria-expanded', 'false');
     resetActionsMenu(activeActionsGroup);
     activeActionsGroup = null;
@@ -357,10 +358,10 @@ function init() {
         const group = event.target.closest('.admin-users-table .btn-group');
         if (!group) return;
         const toggle = group.querySelector('.user-email-actions-toggle');
-        if (event.key === ' ' && event.target === toggle) {
+        if (event.key === ' ' && (event.target === toggle || event.target.matches('.user-action-form button'))) {
             event.preventDefault();
             event.stopPropagation();
-            toggle.click();
+            event.target.click();
         } else if (event.key === 'Escape' && group.classList.contains('open')) {
             event.preventDefault();
             event.stopPropagation();
