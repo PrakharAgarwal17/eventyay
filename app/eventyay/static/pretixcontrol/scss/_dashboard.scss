@@ -248,6 +248,7 @@ $dashboard-section-gap: 24px;
   }
 
   .dashboard.custom {
+    gap: $dashboard-section-gap;
     margin-top: 20px;
     margin-bottom: $dashboard-section-gap;
   }
